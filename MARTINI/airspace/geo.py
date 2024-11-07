@@ -130,6 +130,11 @@ def find_line_polygon_intersection(point, velocity, polygon):
             if dist < min_distance:
                 min_distance = dist
                 closest_intersection = intersection
+
+    # Check if closest intersection is too close to starting point
+    if closest_intersection is not None:
+        if np.linalg.norm(closest_intersection - point) < 1.0:
+            return None
     
     return closest_intersection
 

@@ -382,7 +382,21 @@ def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]], offspri
         
         # Find the opposite edge (approximately opposite to the entry edge)
         num_edges = len(polygon_points) - 1
-        opposite_edge_idx = (entry_edge_idx + num_edges // 2) % num_edges
+
+        if num_edges >= 4:
+            # Base opposite edge index
+            base_opposite = (entry_edge_idx + num_edges // 2) % num_edges
+            # Randomly choose between base, base+1, or base-1, avoiding adjacent edges
+            offset = np.random.choice([-1, 0, 1])
+            opposite_edge_idx = (base_opposite + offset) % num_edges
+            # Check if the chosen edge is adjacent to entry edge
+            # while (opposite_edge_idx == entry_edge_idx or 
+            #        opposite_edge_idx == (entry_edge_idx + 1) % num_edges or 
+            #        opposite_edge_idx == (entry_edge_idx - 1) % num_edges):
+            #     offset = np.random.choice([-1, 0, 1])
+            #     opposite_edge_idx = (base_opposite + offset) % num_edges
+        else:
+            opposite_edge_idx = (entry_edge_idx + num_edges // 2) % num_edges
         
         # Get the opposite edge
         opposite_edge = LineString([
