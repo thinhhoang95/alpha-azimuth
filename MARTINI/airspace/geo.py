@@ -1,4 +1,5 @@
 from typing import List, Tuple
+import numpy as np
 
 def polygon_area(points: List[Tuple[float, float]]) -> float:
     """
@@ -80,6 +81,59 @@ def get_inward_normal(points: List[Tuple[float, float]], edge: List[Tuple[float,
     normal_y /= length
 
     return (normal_x, normal_y)
+
+def find_line_polygon_intersection(point, velocity, polygon):
+    """
+    Find intersection of a ray with a polygon.
+    
+    Args:
+        point (np.array): Starting point [x, y]
+        velocity (np.array): Direction vector [dx, dy]
+        polygon (np.array): Nx2 array of polygon vertices
+    
+    Returns:
+        np.array: Intersection point [x, y] or None if no intersection
+    """
+    # Create a distant point along the velocity vector
+    # (making sure it's well beyond the polygon)
+    far_point = point + velocity * 10000  # Large enough to cross polygon
+    
+    closest_intersection = None
+    min_distance = float('inf')
+    
+    # Check intersection with each polygon edge
+    for i in range(len(polygon)):
+        p1 = polygon[i]
+        p2 = polygon[(i + 1) % len(polygon)]
+        
+        # Line segment intersection calculation
+        x1, y1 = point
+        x2, y2 = far_point
+        x3, y3 = p1
+        x4, y4 = p2
+        
+        denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if denominator == 0:  # Lines are parallel
+            continue
+            
+        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denominator
+        u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denominator
+        
+        if 0 <= t <= 1 and 0 <= u <= 1:
+            intersection = np.array([
+                x1 + t * (x2 - x1),
+                y1 + t * (y2 - y1)
+            ])
+            
+            # Keep only the closest intersection point
+            dist = np.linalg.norm(intersection - point)
+            if dist < min_distance:
+                min_distance = dist
+                closest_intersection = intersection
+    
+    return closest_intersection
+
+
 
 def compute_transit_length(points: List[Tuple[float, float]], entry_point: Tuple[float, float], velocity: Tuple[float, float]) -> float:
     """
