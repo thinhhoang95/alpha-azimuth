@@ -171,7 +171,7 @@ def thomas_point_process_border(points: List[Tuple[float, float]], lambda_parent
 
 
 
-def sector_process(points: List[Tuple[float, float]], lambda_parent: float, mu: float, sigma: float, random_state: int = None, min_dist_to_vertex: float = 50, min_transit_length: float = 50) -> Tuple[List[Tuple[float, float]], List[int], List[Tuple[Tuple[float, float], Tuple[float, float]]], List[float]]:
+def thomas_jensen_process(points: List[Tuple[float, float]], lambda_parent: float, mu: float, sigma: float, random_state: int = None, min_dist_to_vertex: float = 50, min_transit_length: float = 50) -> Tuple[List[Tuple[float, float]], List[int], List[Tuple[Tuple[float, float], Tuple[float, float]]], List[float]]:
     """
     Generate random points along the border of a polygon in line with the general guidelines for airspace design.
     The general criteria are to ensure the entry points are located near the middle of the edges, sufficiently far from the vertices, and the transit time is sufficient.
@@ -182,12 +182,15 @@ def sector_process(points: List[Tuple[float, float]], lambda_parent: float, mu: 
     - mu: Mean number of offspring per parent (μ).
     - sigma: Standard deviation for the Gaussian displacement of offspring from parents (σ).
     - random_state: (Optional) Seed or NumPy RandomState for reproducibility.
+    - min_dist_to_vertex: Minimum distance (in meters) that points must be from polygon vertices.
+    - min_transit_length: Minimum transit length (in meters) required through the polygon.
 
     Returns:
     - Tuple containing:
         - offspring_points: List of (x, y) tuples representing the generated points
         - parent_indices: List of integers indicating the parent index for each offspring
         - edge_points: List of ((x1,y1), (x2,y2)) tuples representing the endpoints of the edge each offspring belongs to
+        - transit_lengths: List of float values representing the transit length through the polygon for each point
     """
     # Initialize the random number generator
     if random_state is None:
