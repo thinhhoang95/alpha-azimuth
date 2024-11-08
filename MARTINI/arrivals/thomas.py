@@ -171,6 +171,13 @@ def thomas_point_process_border(points: List[Tuple[float, float]], lambda_parent
 
 
 
+
+
+
+
+
+# Note that if lambda_parent is autoregressive, then we have Hawkes process.
+# Thomas-Jensen-Hawkes (TJH) process.
 def thomas_jensen_process(points: List[Tuple[float, float]], lambda_parent: float, mu: float, sigma: float, random_state: int = None, min_dist_to_vertex: float = 50, min_transit_length: float = 50) -> Tuple[List[Tuple[float, float]], List[int], List[Tuple[Tuple[float, float], Tuple[float, float]]], List[float]]:
     """
     Generate random points along the border of a polygon in line with the general guidelines for airspace design.
@@ -340,6 +347,13 @@ def thomas_jensen_process(points: List[Tuple[float, float]], lambda_parent: floa
     return offspring_points, parent_indices, edge_points, transit_lengths
 
 
+
+
+
+
+
+
+
 def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]], offspring_points: List[Tuple[float, float]], parent_indices: List[int]) -> List[Tuple[float, float]]:
     """
     For each parent index, select one offspring point and determine the opposite edge of the polygon.
@@ -386,7 +400,7 @@ def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]], offspri
         # Find the opposite edge (approximately opposite to the entry edge)
         num_edges = len(polygon_points) - 1
 
-        if num_edges >= 4:
+        if num_edges >= 6:
             # Base opposite edge index
             base_opposite = (entry_edge_idx + num_edges // 2) % num_edges
             # Randomly choose between base, base+1, or base-1, avoiding adjacent edges
@@ -429,6 +443,10 @@ def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]], offspri
 
         
     return exit_points, velocity_vectors # the number of exit points is the same as the number of parents
+
+
+
+
 
 
 
