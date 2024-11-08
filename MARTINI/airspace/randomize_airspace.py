@@ -54,7 +54,7 @@ def get_num_points_of_airspace(n_min: int = 4, n_max: int = 8, p: np.ndarray = N
 
 from typing import Tuple
 
-def generate_unit_polygon(n_points: int, radius: float, min_angle: float = 60, max_attempts: int = 1000) -> Tuple[np.ndarray, float]:
+def generate_unit_polygon(n_points: int, radius: float, min_angle: float = 60, max_attempts: int = 1000, seed: int = None) -> Tuple[np.ndarray, float]:
     """
     Generate a random simple (non-self-intersecting) polygon with approximately unit area.
     
@@ -66,6 +66,9 @@ def generate_unit_polygon(n_points: int, radius: float, min_angle: float = 60, m
         numpy.ndarray: Array of shape (n_points, 2) containing the vertices
         float: Actual area of the generated polygon
     """
+    if seed is not None:
+        np.random.seed(seed)
+
     def compute_area(points):
         """Compute area of polygon using shoelace formula"""
         x = points[:, 0]
