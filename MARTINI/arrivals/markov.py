@@ -112,8 +112,8 @@ def example_usage():
     # Example two-state MAP
     D0 = np.array([[-3, 1],
                    [2, -4]])
-    D1 = np.array([[1.5, 0.5],
-                   [1.0, 1.0]])
+    D1 = np.array([[1.5, 0.5], 
+                   [1.0, 1.0]]) # note: -3 = 1 + 1.5 + 0.5 (all the elements in the same row of two matrices (not each matrix) sum to 0)
     
     map_process = MarkovArrivalProcess(D0, D1)
     print(f"Stationary distribution: {map_process.pi}")
