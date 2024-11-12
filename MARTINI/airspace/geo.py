@@ -217,3 +217,30 @@ def compute_transit_length(points: List[Tuple[float, float]], entry_point: Tuple
         
     # Compute transit length
     return ((exit_point[0] - entry_point[0])**2 + (exit_point[1] - entry_point[1])**2)**0.5
+
+
+def get_track_angle(point_from: Tuple[float, float], point_to: Tuple[float, float]) -> float:
+    """
+    Calculate the track angle between two points in degrees.
+    
+    Args:
+        point_from: Starting point (x, y)
+        point_to: Ending point (x, y)
+        
+    Returns:
+        float: Track angle in degrees (0-360), measured clockwise from true north
+    """
+    dx = point_to[0] - point_from[0]
+    dy = point_to[1] - point_from[1]
+    
+    # Calculate angle in radians from east axis
+    angle = np.arctan2(dy, dx)
+    
+    # Convert to degrees from north axis
+    degrees = 90 - np.degrees(angle)
+    
+    # Normalize to 0-360 range
+    if degrees < 0:
+        degrees += 360
+        
+    return degrees

@@ -81,8 +81,12 @@ class MarkovArrivalProcess:
             # Calculate total rate out of current state
             total_rate = -self.D0[current_state, current_state]
             
-            # Generate time until next transition
-            time_to_next = np.random.exponential(1/total_rate)
+            # Use gamma distribution with shape parameter k > 1 to move probability away from zero
+            k = 50.0  # shape parameter (increase for more shift away from zero)
+            # scale = 1/(k*total_rate)  # scale parameter adjusted to maintain same mean
+            scale = 15/(k*total_rate)
+            time_to_next = np.random.gamma(k, scale)
+            
             current_time += time_to_next
             
             if current_time > T:
@@ -106,14 +110,34 @@ class MarkovArrivalProcess:
             else:
                 probs = P[0] / P[0].sum()
             
-            if is_arrival:
-                old_state = current_state
-                current_state = np.random.choice(self.n_states, p=probs)
-                print(f"Transition: {old_state} -> {current_state} (Arrival: {is_arrival})")
-        
+            # Update state
+            old_state = current_state
+            current_state = np.random.choice(self.n_states, p=probs)
+            # print(f"Current time: {current_time}, Transition: {old_state} -> {current_state} (Arrival: {is_arrival}), Total rate: {total_rate}")
+            pass
+                
         return arrivals
     
 def standardize_D0_D1(D0: np.ndarray, D1: np.ndarray):
+    """
+    Standardize the D0 and D1 matrices for a Markov Arrival Process (MAP).
+    
+    This function ensures the matrices follow MAP requirements by:
+    1. Preserving non-diagonal elements of D0
+    2. Setting diagonal elements of D0 to negative row-sums of Q = D0 + D1
+    
+    Parameters:
+        D0 (np.ndarray): The non-arrival transition rate matrix
+        D1 (np.ndarray): The arrival transition rate matrix
+        
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: Standardized versions of (D0, D1) matrices
+        
+    Note:
+        For a valid MAP, the sum of all elements in each row of D0 + D1 
+        should equal zero. This function enforces this constraint by
+        adjusting the diagonal elements of D0.
+    """
     mD0 = np.copy(D0)
     D0_zero_diag = D0 - np.diag(np.diag(D0))
     Q = D0_zero_diag + D1
@@ -125,10 +149,10 @@ def standardize_D0_D1(D0: np.ndarray, D1: np.ndarray):
 def example_usage():
     # Example two-state MAP
     D0 = np.array([[-10.5, 1],
-                   [2, -30.0]])
-    D1 = np.array([[0, 0.5], 
-                   [1.0, 0]]) # note: -3 = 1 + 1.5 + 0.5 (all the elements in the same row of two matrices (not each matrix) sum to 0)
-    
+                   [2, -30.0]]) / 30
+    D1 = np.array([[0, 4.0], 
+                   [2.0, 0]]) / 10 # note: -3 = 1 + 1.5 + 0.5 (all the elements in the same row of two matrices (not each matrix) sum to 0)
+    # D1[2,1] / D1[1,2]: mixture of regular and burst behavior
     D0, D1 = standardize_D0_D1(D0, D1)
 
     map_process = MarkovArrivalProcess(D0, D1)
@@ -136,8 +160,12 @@ def example_usage():
     print(f"Arrival rate: {map_process.lambda_}")
     
     # Generate arrivals for time period T=10
-    arrivals = map_process.generate_arrivals(T=10, seed=42)
-    print(f"Arrival times: {arrivals}")
+    arrivals = map_process.generate_arrivals(T=3600, seed=42)
+    print(f"Arrivals: {arrivals}")
+    # Plot the histogram of arrivals
+    import matplotlib.pyplot as plt
+    plt.hist(np.diff(arrivals), bins=50)
+    plt.show()
 
 if __name__ == "__main__":
     example_usage()
