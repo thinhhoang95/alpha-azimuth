@@ -11,6 +11,7 @@ from debug_printer import debug
 def thomas_point_process_border(points: List[Tuple[float, float]], lambda_parent: float, mu: float, sigma: float, random_state: int = None, min_dist_to_vertex: float = 50, min_transit_length: float = 50) -> Tuple[List[Tuple[float, float]], List[int], List[Tuple[Tuple[float, float], Tuple[float, float]]]]:
     """
     Generate random points along the border of a polygon using the Thomas Point Process.
+    ATTENTION: do not use this function. Use Thomas-Jensen process instead.
 
     Parameters:
     - points: List of (x, y) tuples defining the polygon vertices in order.
@@ -350,11 +351,106 @@ def thomas_jensen_process(points: List[Tuple[float, float]], lambda_parent: floa
 
 
 
+from ..airspace import intersect
+from ..airspace import geo
+from ..airspace import randomize_airspace
+
+def generate_problem_thomas_jensen(polygon: Tuple[np.ndarray, float], lambda_parent: float, mu: float, sigma: float, min_dist_to_vertex: float = 50, min_transit_length: float = 50, **kwargs) -> Tuple[List[Tuple[float, float]], List[int], List[Tuple[Tuple[float, float], Tuple[float, float]]], List[float]]:
+    """
+    Generate entry and exit points for aircraft trajectories using a Thomas-Jensen point process.
+    
+    This function generates entry points along the polygon boundary using a Thomas-Jensen process,
+    then calculates corresponding exit points and velocity vectors for valid trajectories through
+    the airspace.
+
+    The difference with Thomas-Jensen process is that this function also checks for intersections
+    with the polygon boundary, and will additionally remove trajectories that do not follow the
+    general airspace design criteria.
+
+    Parameters:
+        polygon (Tuple[np.ndarray, float]): Vertices of the polygon defining the airspace boundary
+        lambda_parent (float): Intensity parameter for parent points in the Thomas process
+        mu (float): Mean number of offspring per parent point
+        sigma (float): Standard deviation for offspring displacement from parent
+        min_dist_to_vertex (float, optional): Minimum allowed distance from entry points to polygon vertices. Defaults to 50.
+        min_transit_length (float, optional): Minimum required transit length through the polygon. Defaults to 50.
+        **kwargs: Additional keyword arguments
+            - restrict_exit_to_opposite_edge (bool): If True, exit points must be on opposite edges. Defaults to False.
+
+    Returns:
+        Tuple containing:
+            - List[Tuple[float, float]]: Entry points for valid trajectories
+            - List[Tuple[float, float]]: Exit points for valid trajectories
+            - List[np.ndarray]: Normalized velocity vectors for each trajectory
+
+    Note:
+        The function filters out invalid trajectories that don't meet minimum transit length
+        requirements or have invalid intersections with the polygon boundary.
+    """
+    # Unpack kwargs
+    restrict_exit_to_opposite_edge = kwargs.get('restrict_exit_to_opposite_edge', False)
+    
+    trajectory_count = 0
+
+    # Generate points
+    random_points, parent_indices, edge_points, transit_length = thomas_jensen_process(polygon, lambda_parent=lambda_parent, mu=mu, sigma=sigma, min_transit_length=min_transit_length, min_dist_to_vertex=min_dist_to_vertex, **kwargs)
+    # Find the exit points for each parent
+    exit_points, velocity_vectors = get_exit_point_for_parent(polygon, random_points, parent_indices, restrict_exit_to_opposite_edge=restrict_exit_to_opposite_edge)
+
+    # If there are no points, skip
+    if len(random_points) == 0:
+        print("No points generated")
+
+    # To store the final results
+    final_entry_points = []
+    final_exit_points = []
+    final_velocity_vectors = []
+
+    # Plot the entry points
+    for i, point in enumerate(random_points):
+        edge = edge_points[i]
+
+        # Get parent index for this entry point
+        parent_idx = parent_indices[i]
+        parent_indices_unique = np.unique(np.array(parent_indices))
+        parent_idx = np.where(parent_indices_unique == parent_idx)[0][0]
+        # Get corresponding velocity vector
+        velocity = velocity_vectors[parent_idx]
+
+        intersection, valid_path = intersect.find_intersection(polygon, velocity, point)
+        if intersection is not None and valid_path:
+            # Add check for minimum distance to vertices
+            too_close_to_vertex = False
+            for vertex in polygon:
+                dist = np.sqrt((intersection[0] - vertex[0])**2 + (intersection[1] - vertex[1])**2)
+                if dist < min_dist_to_vertex:
+                    too_close_to_vertex = True
+                    break
+            
+            if not too_close_to_vertex:
+                final_entry_points.append(point)
+                final_exit_points.append(intersection)
+                final_velocity_vectors.append(velocity)
+                trajectory_count += 1
+        else:
+            pass 
+        
+    return final_entry_points, final_exit_points, final_velocity_vectors
 
 
 
 
-def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]], offspring_points: List[Tuple[float, float]], parent_indices: List[int]) -> List[Tuple[float, float]]:
+
+
+
+
+
+
+
+def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]],
+                              offspring_points: List[Tuple[float, float]], 
+                              parent_indices: List[int], 
+                              **kwargs) -> List[Tuple[float, float]]:
     """
     For each parent index, select one offspring point and determine the opposite edge of the polygon.
     
@@ -366,6 +462,12 @@ def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]], offspri
     Returns:
     - List of (x, y) tuples representing exit points on opposite edges
     """
+
+    # Unpack kwargs
+    # If restrict_exit_to_opposite_edge is True, then the exit point must be on the opposite edge.
+    restrict_exit_to_opposite_edge = kwargs.get('restrict_exit_to_opposite_edge', False)
+
+
     # Create polygon for geometric operations
     polygon = Polygon(polygon_points)
     
@@ -390,22 +492,30 @@ def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]], offspri
         min_dist = float('inf')
         entry_edge_idx = -1
         
-        for i in range(len(polygon_points) - 1):
-            edge = LineString([polygon_points[i], polygon_points[i + 1]])
+        for i in range(len(polygon_points)):
+            edge = LineString([polygon_points[i], polygon_points[(i + 1) % len(polygon_points)]])
             dist = entry_point.distance(edge)
             if dist < min_dist:
                 min_dist = dist
                 entry_edge_idx = i
         
         # Find the opposite edge (approximately opposite to the entry edge)
-        num_edges = len(polygon_points) - 1
+        num_edges = len(polygon_points)
 
-        if num_edges >= 6:
-            # Base opposite edge index
-            base_opposite = (entry_edge_idx + num_edges // 2) % num_edges
-            # Randomly choose between base, base+1, or base-1, avoiding adjacent edges
-            offset = np.random.choice([-1, 0, 1])
-            opposite_edge_idx = (base_opposite + offset) % num_edges
+        if num_edges >= 5:
+            if restrict_exit_to_opposite_edge:
+                # Base opposite edge index
+                base_opposite = (entry_edge_idx + num_edges // 2) % num_edges
+                # Randomly choose between base, base+1, or base-1, avoiding adjacent edges
+                # offset = np.random.choice([-1, 0, 1])
+                offset = 0
+                opposite_edge_idx = (base_opposite + offset) % num_edges
+            else:
+                # Randomly choose an edge
+                opposite_edge_idx = np.random.randint(0, num_edges)
+                # But it cannot be the same as the entry edge
+                while opposite_edge_idx == entry_edge_idx:
+                    opposite_edge_idx = np.random.randint(0, num_edges)
             # Check if the chosen edge is adjacent to entry edge
             # while (opposite_edge_idx == entry_edge_idx or 
             #        opposite_edge_idx == (entry_edge_idx + 1) % num_edges or 
@@ -413,12 +523,13 @@ def get_exit_point_for_parent(polygon_points: List[Tuple[float, float]], offspri
             #     offset = np.random.choice([-1, 0, 1])
             #     opposite_edge_idx = (base_opposite + offset) % num_edges
         else:
+            # If there are less than 5 edges, then the opposite edge is the middle edge
             opposite_edge_idx = (entry_edge_idx + num_edges // 2) % num_edges
         
         # Get the opposite edge
         opposite_edge = LineString([
             polygon_points[opposite_edge_idx],
-            polygon_points[opposite_edge_idx + 1]
+            polygon_points[(opposite_edge_idx + 1) % len(polygon_points)]
         ])
         
         # Find the midpoint of the opposite edge
@@ -471,3 +582,59 @@ def visualize_entry_points(polygon_points: List[Tuple[float, float]], offspring:
     plt.tight_layout()  # Adjust layout to prevent legend cutoff
     plt.show()
 
+
+import matplotlib.pyplot as plt
+def visualize_airspace(polygon: Tuple[np.ndarray, float], entry_points: List[Tuple[float, float]], exit_points: List[Tuple[float, float]], velocity_vectors: List[np.ndarray]):
+    """
+    Visualize the airspace polygon with entry points, exit points and velocity vectors.
+    
+    Args:
+        polygon: Tuple containing polygon vertices and area
+        entry_points: List of entry point coordinates
+        exit_points: List of exit point coordinates 
+        velocity_vectors: List of velocity vectors
+    """
+    
+    # Create closed polygon by appending first vertex
+    x = [v[0] for v in polygon]
+    y = [v[1] for v in polygon]
+    x.append(x[0])
+    y.append(y[0])
+    
+    # Create plot
+    plt.figure(figsize=(7,5))
+    
+    # Plot polygon boundary
+    plt.plot(x, y, 'k-', linewidth=2, label='Airspace Boundary')
+
+    # Convert entry_points, exit_points, and velocity_vectors to numpy arrays
+    entry_points = np.array(entry_points)
+    exit_points = np.array(exit_points)
+    velocity_vectors = np.array(velocity_vectors)
+
+    # Scatter plot the entry points
+    plt.scatter(entry_points[:, 0], entry_points[:, 1], color='green', label='Entry Points')
+    
+    # Scatter plot the exit points
+    plt.scatter(exit_points[:, 0], exit_points[:, 1], color='red', label='Exit Points')
+    
+    # Plot the velocity vectors
+    # Plot velocity vectors as arrows from entry points
+    for entry_point, velocity in zip(entry_points, velocity_vectors):
+        plt.arrow(entry_point[0], entry_point[1], 
+                 velocity[0]*50, velocity[1]*50,  # Scale velocity for visibility
+                 head_width=10, head_length=10, fc='g', ec='g', 
+                 alpha=0.5, length_includes_head=True)
+        
+    # Plot lines connecting entry and exit points
+    for entry, exit in zip(entry_points, exit_points):
+        plt.plot([entry[0], exit[0]], [entry[1], exit[1]], 
+                 'b--', alpha=0.3, linewidth=1)
+
+    plt.grid(True)
+    plt.axis('equal')
+    plt.title('Generated Airspace from Thomas-Jensen Process')
+    plt.xlabel('X-coordinate')
+    plt.ylabel('Y-coordinate')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.show()

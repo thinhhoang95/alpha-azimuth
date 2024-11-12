@@ -92,6 +92,8 @@ class MarkovArrivalProcess:
             P = np.zeros((2, self.n_states))
             P[0] = self.D0[current_state] / total_rate  # Non-arrival transitions
             P[1] = self.D1[current_state] / total_rate  # Arrival transitions
+            # Zeroing out the self-transition
+            P[0, current_state] = 0
             
             # Determine if arrival occurs and next state
             rand = np.random.random()
@@ -104,17 +106,31 @@ class MarkovArrivalProcess:
             else:
                 probs = P[0] / P[0].sum()
             
-            current_state = np.random.choice(self.n_states, p=probs)
+            if is_arrival:
+                old_state = current_state
+                current_state = np.random.choice(self.n_states, p=probs)
+                print(f"Transition: {old_state} -> {current_state} (Arrival: {is_arrival})")
         
         return arrivals
+    
+def standardize_D0_D1(D0: np.ndarray, D1: np.ndarray):
+    mD0 = np.copy(D0)
+    D0_zero_diag = D0 - np.diag(np.diag(D0))
+    Q = D0_zero_diag + D1
+    # Set the diagonal of D0 to negative row-sum of Q
+    d = -Q.sum(axis=1)
+    np.fill_diagonal(mD0, d)
+    return mD0, D1
 
 def example_usage():
     # Example two-state MAP
-    D0 = np.array([[-3, 1],
-                   [2, -4]])
-    D1 = np.array([[1.5, 0.5], 
-                   [1.0, 1.0]]) # note: -3 = 1 + 1.5 + 0.5 (all the elements in the same row of two matrices (not each matrix) sum to 0)
+    D0 = np.array([[-10.5, 1],
+                   [2, -30.0]])
+    D1 = np.array([[0, 0.5], 
+                   [1.0, 0]]) # note: -3 = 1 + 1.5 + 0.5 (all the elements in the same row of two matrices (not each matrix) sum to 0)
     
+    D0, D1 = standardize_D0_D1(D0, D1)
+
     map_process = MarkovArrivalProcess(D0, D1)
     print(f"Stationary distribution: {map_process.pi}")
     print(f"Arrival rate: {map_process.lambda_}")
