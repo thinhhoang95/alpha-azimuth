@@ -2,6 +2,7 @@ from wf_dynamics import ode_wrapper_for_system_with_lateral_control
 import numpy as np
 from scipy.integrate import solve_ivp
 from matplotlib import pyplot as plt
+from scipy.interpolate import interp1d
 MAX_SOLVER_TIME = 3 * 3600 # 3 hours
 
 
@@ -39,7 +40,7 @@ def plot_state_vector(sol):
     plt.plot(sol.t, sol.y[6,:]) # phi
     plt.title('Roll')
     
-    plt.tight_layout()
+    # plt.tight_layout()
     
     plt.show()
 
@@ -50,7 +51,7 @@ def get_4d_trajectory_from_flight_plan(entry_time, entry_psi, spd_ref, alt_ref, 
         raise NotImplementedError("Wind field not implemented yet")
     
     clock = entry_time # in seconds
-    max_clock = entry_time + 1000
+    max_clock = entry_time + 2 * 3600 # 2 hours
 
     # Global state vector
     s = np.zeros(15)
@@ -61,15 +62,23 @@ def get_4d_trajectory_from_flight_plan(entry_time, entry_psi, spd_ref, alt_ref, 
     s[1] = xy_ref[0][1] # y position
     s[5] = entry_psi * np.pi / 180 # heading
 
+    # Record the conditions at the waypoints
     event_times = []
     event_states = []
 
     event_times.append(clock)
     event_states.append(s)
 
+    # Record the state vector
+    state_times = []
+    state_states = []
+
 
     # Skip first waypoint since we're already there, then iterate through remaining waypoints
+    wp_idx = 0
     for (x,y), z, v in zip(xy_ref[1:], alt_ref[1:], spd_ref[1:]):
+        wp_idx += 1
+        print(f"Directing to waypoint {wp_idx}: ({x}, {y})")
         # Prepare the reference vectors for the upcoming waypoint 
         dsdt = ode_wrapper_for_system_with_lateral_control
         # Initial conditions
@@ -83,7 +92,7 @@ def get_4d_trajectory_from_flight_plan(entry_time, entry_psi, spd_ref, alt_ref, 
         y0[14] = y
 
         # Solve the ODE
-        sol = solve_ivp(dsdt, t_span=[0, 120.1], y0=y0)
+        sol = solve_ivp(dsdt, t_span=[0, MAX_SOLVER_TIME], y0=y0)
 
         t_vec = sol.t
         s_vec = sol.y
@@ -98,6 +107,7 @@ def get_4d_trajectory_from_flight_plan(entry_time, entry_psi, spd_ref, alt_ref, 
         
         if len(wp_reached_indices) == 0:
             plot_state_vector(sol)
+            print(f"Integration stopped at waypoint {wp_idx}")
             print(f"Last x value: ", x_vec[-1])
             print(f"Last y value: ", y_vec[-1])
             raise RuntimeError(f"Aircraft never reached waypoint ({x}, {y})")
@@ -108,27 +118,36 @@ def get_4d_trajectory_from_flight_plan(entry_time, entry_psi, spd_ref, alt_ref, 
         
         # Update state vector to waypoint reached position
         s = sol.y[:, wp_reached_idx]
-        clock += wp_reached_time
+        
 
         # Record the event
         event_times.append(clock)
         event_states.append(s)
+
+        # Record the state vector
+        # Resample the state vector at 1 Hz
+        t_resampled = np.arange(0, wp_reached_time, 1)
+        interpolator = interp1d(t_vec, s_vec, axis=1)
+        s_resampled = interpolator(t_resampled)
+        state_times.append(t_resampled + clock)
+        state_states.append(s_resampled)
+
+        clock += wp_reached_time
         
         if clock > max_clock:
             raise RuntimeError("Maximum simulation time exceeded")
         
-    return event_times, event_states
+    return event_times, event_states, state_times, state_states
 
 def test_get_4d_trajectory_from_flight_plan():
     entry_time = 0
     entry_psi = 90
     spd_ref = [250, 250, 250, 250]
     alt_ref = [25000, 25000, 25000, 25000]
-    xy_ref = [[0,0], [100000,0], [100000,100000], [0,100000]]
-    event_times, event_states = get_4d_trajectory_from_flight_plan(entry_time, entry_psi, spd_ref, alt_ref, xy_ref)
+    xy_ref = [[0,0], [50000,0], [50000,50000], [0,50000]]
+    event_times, event_states, state_times, state_states = get_4d_trajectory_from_flight_plan(entry_time, entry_psi, spd_ref, alt_ref, xy_ref)
 
-    print(event_times)
-    print(event_states)
+    return event_times, event_states, state_times, state_states
 
 if __name__ == "__main__":
     test_get_4d_trajectory_from_flight_plan()

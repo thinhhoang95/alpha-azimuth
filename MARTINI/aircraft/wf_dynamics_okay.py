@@ -55,14 +55,6 @@ def sat(x: float, x_min: float, x_max: float) -> float:
     """
     return np.minimum(np.maximum(x, x_min), x_max)
 
-def sat_for_rate(x: float, y: float, x_min: float, x_max: float, y_min_dot: float, y_max_dot: float) -> float:
-    if x < x_min:
-        return y_min_dot
-    elif x > x_max:
-        return y_max_dot
-    else:
-        return y
-
 def wind_free_system(t, s: np.array, u: np.array,
               kvp: float, kvi: float, 
               khp: float, khi: float,
@@ -307,12 +299,7 @@ def wind_free_system_with_lateral_control(t, s: np.array, u: np.array,
         psi_c -= 2 * np.pi
         
     target_phi = - (kpsip * (psi - psi_c) + kpsii * epsii) # PI controller to determine the roll angle
-    if target_phi < -0.436:
-        target_phi = -0.436
-    elif target_phi > 0.436:
-        target_phi = 0.436
-        
-    dsdt[6] = kphip * (phi - target_phi) + kphii * ephii # PI controller for the heading angle, phi_dot with maximum 25 degree bank angle
+    dsdt[6] = sat(kphip * (phi - target_phi) + kphii * ephii, -0.436, 0.436)  # PI controller for the heading angle, phi_dot with maximum 25 degree bank angle
     
     # Error integrators
     dsdt[7] = V - Vc # ev integration
