@@ -25,7 +25,4 @@ def eval_plan(flight_plan: FlightPlan, obstacles: Obstacle, airspace: Any, wind_
             if line_segment_intersects_polygon(start, end, obstacle):
                 obstacle_hits += 1
 
-    if obstacle_hits > 0:
-        return np.inf
-    else:
-        return time_cost
+    return time_cost, obstacle_hits

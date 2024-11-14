@@ -5,63 +5,74 @@
 
 import numpy as np
 from .obstacle import Obstacle
+from .policy import sample_action
 
-def get_obstacle_indices_using_ray_intersection(from_point: np.ndarray, to_point: np.ndarray, obstacles: Obstacle, margin_km: float = 1.0):
+def _line_segment_intersection(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray) -> bool:
     """
-    Returns indices of obstacles that intersect with the ray from from_point to to_point.
-    Attention: it checks for ray intersection, not segment intersection.
+    Helper function to detect if two line segments intersect.
+    p1, p2 define the first line segment
+    p3, p4 define the second line segment
+    """
+    # Calculate the direction vectors
+    d1 = p2 - p1
+    d2 = p4 - p3
+
+    # Calculate the cross product denominator
+    cross_prod = np.cross(d1, d2)
+    
+    # If lines are parallel (cross product = 0), return False
+    if abs(cross_prod) < 1e-10:
+        return False
+
+    # Calculate t1 and t2 parameters
+    t1 = np.cross(p3 - p1, d2) / cross_prod
+    t2 = np.cross(p3 - p1, d1) / cross_prod
+
+    # Check if intersection point lies within both line segments
+    return (0 <= t1 <= 1) and (0 <= t2 <= 1)
+
+def get_obstacle_indices(from_point: np.ndarray, to_point: np.ndarray, 
+                                              obstacles: Obstacle, margin_km: float = 1.0) -> list:
+    """
+    Detect which obstacles intersect with the line segment from from_point to to_point.
     
     Args:
-        from_point: Starting point as np.array([x, y])
-        to_point: End point as np.array([x, y])
+        from_point: Starting point of the line segment
+        to_point: Ending point of the line segment
         obstacles: Obstacle object containing polygons
-        margin_km: Safety margin in kilometers to add around obstacles
+        margin_km: Safety margin in kilometers (not used in basic intersection check)
         
     Returns:
         List of indices of intersecting obstacles
     """
-    def ray_intersects_segment(p1, p2): # p1, p2 are two vertices of a polygon
-        # Convert margin to meters
-        margin = margin_km * 1000
-        
-        # Expand polygon points by margin
-        p1 = p1 + np.sign(p1 - from_point) * margin
-        p2 = p2 + np.sign(p2 - from_point) * margin
-        
-        # Ray direction
-        ray_dir = to_point - from_point
-        segment_dir = p2 - p1
-        
-        # Cross products
-        denom = np.cross(ray_dir, segment_dir)
-        if abs(denom) < 1e-10:  # Lines are parallel
-            return False, None
-            
-        t = np.cross(p1 - from_point, segment_dir) / denom
-        u = np.cross(p1 - from_point, ray_dir) / denom
-        
-        if (t >= 0) and (0 <= u <= 1):
-            intersection_point = from_point + t * ray_dir
-            return True, intersection_point
-        return False, None
-
-    # List to store (index, distance) pairs
-    intersections = []
+    intersecting_obstacles = []
     
-    for i, polygon in enumerate(obstacles.get_polygons()):
+    for obstacle_idx, polygon in enumerate(obstacles.get_polygons()):
+        # Check intersection with each edge of the polygon
         n_vertices = len(polygon)
-        for j in range(n_vertices):
-            p1 = polygon[j]
-            p2 = polygon[(j + 1) % n_vertices]
+        for i in range(n_vertices):
+            # Get current edge vertices
+            p3 = polygon[i]
+            p4 = polygon[(i + 1) % n_vertices]  # Wrap around to first vertex
             
-            intersects, intersection_point = ray_intersects_segment(p1, p2)
-            if intersects:
-                # Calculate distance from start point to intersection
-                distance = np.linalg.norm(intersection_point - from_point)
-                intersections.append((i, distance))
-                break
+            # Check if the line segment intersects with this edge
+            if _line_segment_intersection(from_point, to_point, p3, p4):
+                intersecting_obstacles.append(obstacle_idx)
+                break  # Move to next obstacle once intersection is found
+                
+    return intersecting_obstacles
+
+def get_attention_weight(from_point: np.ndarray, to_point: np.ndarray, obstacles: Obstacle, margin_km: float = 1.0):
+    obstacle_indices = get_obstacle_indices(from_point, to_point, obstacles, margin_km)
+    if len(obstacle_indices) == 0:
+        return 0.0, None # No obstacle in the way, no need to use the obstacle avoidance policy
+    else:
+        return 1.0, obstacle_indices[0] # Obstacle in the way, need to use the obstacle avoidance policy
     
-    # Sort by distance and extract indices
-    intersecting_indices = [idx for idx, dist in sorted(intersections, key=lambda x: x[1])]
-    return intersecting_indices
-    
+def propose_action(from_point: np.ndarray, to_point: np.ndarray, obstacles: Obstacle, margin_km: float = 1.0):
+    attention_weight, obstacle_index = get_attention_weight(from_point, to_point, obstacles, margin_km)
+    if attention_weight == 0.0:
+        return attention_weight, None
+    else:
+        return attention_weight, sample_action(obstacles, [obstacle_index], max_distance=10.0, min_distance=1.0, num_samples=100, nearby_threshold=3.0)
+

@@ -62,7 +62,7 @@ class FlightPlan:
     def __str__(self):
         str_repr = f"Flight plan with {self.num_waypoints} waypoints"
         for i, wp in enumerate(self.waypoints):
-            str_repr += f"\nWaypoint {i}: {wp}"
+            str_repr += f"\n* Waypoint {i}: {wp}"
             str_repr += f"\nAltitude: {self.altitudes[i]}"
             str_repr += f"\nSpeed: {self.speeds[i]}"
         return str_repr

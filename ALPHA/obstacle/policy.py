@@ -12,7 +12,7 @@ def get_distance_between_polygons(poly1, poly2):
     """Helper function to compute approximate distance between polygons using centroids"""
     return np.linalg.norm(get_polygon_centroid(poly1) - get_polygon_centroid(poly2))
 
-def sample_action(obstacles: List[Obstacle], intersecting_obstacle_indices: List[int], 
+def sample_action(obstacles: Obstacle, intersecting_obstacle_indices: List[int], 
                  max_distance: float = 5.0, min_distance: float = 1.0, num_samples: int = 1, 
                  nearby_threshold: float = 3.0):
     """
@@ -33,29 +33,27 @@ def sample_action(obstacles: List[Obstacle], intersecting_obstacle_indices: List
     
     # First, collect intersecting obstacles' polygons
     intersecting_polygons = set()
-    for idx in intersecting_obstacle_indices:
-        for poly in obstacles[idx].get_polygons():
-            intersecting_polygons.add(tuple(map(tuple, poly)))
+    for poly in obstacles.get_polygons():
+        intersecting_polygons.add(tuple(map(tuple, poly)))
     
     # Process all obstacles and their polygons
-    for obs_idx, obstacle in enumerate(obstacles):
-        for poly in obstacle.get_polygons():
-            poly_array = np.array(poly)
-            all_polygons.append(poly_array)
-            polygon_to_obstacle_idx.append(obs_idx)
+    for obs_idx, poly in enumerate(obstacles.get_polygons()):
+        poly_array = np.array(poly)
+        all_polygons.append(poly_array)
+        polygon_to_obstacle_idx.append(obs_idx)
+        
+        # Assign weights based on obstacle type
+        if obs_idx in intersecting_obstacle_indices:
+            polygon_weights.append(1.0)  # Highest weight for intersecting obstacles
+        else:
+            # Check if this polygon is near any intersecting polygon
+            is_nearby = False
+            for intersecting_poly in intersecting_polygons:
+                if get_distance_between_polygons(poly_array, np.array(intersecting_poly)) < nearby_threshold:
+                    is_nearby = True
+                    break
             
-            # Assign weights based on obstacle type
-            if obs_idx in intersecting_obstacle_indices:
-                polygon_weights.append(1.0)  # Highest weight for intersecting obstacles
-            else:
-                # Check if this polygon is near any intersecting polygon
-                is_nearby = False
-                for intersecting_poly in intersecting_polygons:
-                    if get_distance_between_polygons(poly_array, np.array(intersecting_poly)) < nearby_threshold:
-                        is_nearby = True
-                        break
-                
-                polygon_weights.append(0.5 if is_nearby else 0.1)  # Higher weight for nearby obstacles
+            polygon_weights.append(0.5 if is_nearby else 0.1)  # Higher weight for nearby obstacles
     
     if not all_polygons:
         return np.random.uniform(-max_distance, max_distance, size=(num_samples, 2))
