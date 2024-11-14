@@ -244,3 +244,151 @@ def get_track_angle(point_from: Tuple[float, float], point_to: Tuple[float, floa
         degrees += 360
         
     return degrees
+
+
+
+
+def compute_polygon_centroid(points: List[Tuple[float, float]]) -> Tuple[float, float]:
+    """
+    Calculate the centroid (geometric center) of a polygon.
+    
+    Args:
+        points: List of 2D points (x, y) defining the polygon vertices
+        
+    Returns:
+        Tuple[float, float]: Centroid coordinates (x, y)
+        
+    Raises:
+        ValueError: If fewer than 3 points provided
+    """
+    if len(points) < 3:
+        raise ValueError("At least 3 points required to compute polygon centroid")
+        
+    # Initialize area accumulator and centroid coordinates
+    area = 0
+    cx = 0
+    cy = 0
+    
+    # Process each vertex pair
+    n = len(points)
+    for i in range(n):
+        j = (i + 1) % n
+        # Get current and next vertex
+        xi, yi = points[i]
+        xj, yj = points[j]
+        
+        # Compute signed area contribution
+        cross = xi * yj - xj * yi
+        area += cross
+        
+        # Accumulate centroid coordinates
+        cx += (xi + xj) * cross
+        cy += (yi + yj) * cross
+    
+    # Complete the area calculation
+    area = area / 2.0
+    
+    # Guard against division by zero
+    if area == 0:
+        raise ValueError("Polygon has zero area")
+        
+    # Complete centroid calculation
+    cx = cx / (6.0 * area)
+    cy = cy / (6.0 * area)
+    
+    return (cx, cy)
+
+
+def point_in_polygon(point: Tuple[float, float], polygon: List[Tuple[float, float]]) -> bool:
+    """
+    Determine if a point lies inside a polygon using ray casting algorithm.
+    
+    Args:
+        point: Point to test (x, y)
+        polygon: List of 2D points (x, y) defining the polygon vertices
+        
+    Returns:
+        bool: True if point is inside polygon, False otherwise
+    """
+    x, y = point
+    inside = False
+    
+    # Cast ray from point to the right
+    for i in range(len(polygon)):
+        j = (i + 1) % len(polygon)
+        
+        yi, yj = polygon[i][1], polygon[j][1]
+        xi, xj = polygon[i][0], polygon[j][0]
+        
+        # Check if point is exactly on boundary
+        if (x, y) == (xi, yi) or (x, y) == (xj, yj):
+            return True
+            
+        # Check if line segment intersects with ray
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
+            inside = not inside
+            
+    return inside
+
+
+
+
+
+def line_segment_intersects_polygon(
+    line_start: Tuple[float, float],
+    line_end: Tuple[float, float],
+    polygon: List[Tuple[float, float]],
+    buffer: float = 0.0
+) -> bool:
+    """
+    Check if a line segment intersects with or touches a polygon.
+
+    Args:
+        line_start: Starting point of line segment (x, y)
+        line_end: Ending point of line segment (x, y)
+        polygon: List of 2D points (x, y) defining the polygon vertices
+        buffer: Optional safety buffer distance around polygon (default: 0.0)
+
+    Returns:
+        bool: True if line segment intersects/touches polygon, False otherwise
+    """
+    # First check if either endpoint is inside the polygon
+    if buffer == 0.0:
+        if point_in_polygon(line_start, polygon) or point_in_polygon(line_end, polygon):
+            return True
+
+    # Check intersection with each polygon edge
+    for i in range(len(polygon)):
+        p1 = polygon[i]
+        p2 = polygon[(i + 1) % len(polygon)]
+        
+        # If using buffer, offset the polygon edge
+        if buffer > 0.0:
+            # Get normal vector for the edge
+            normal = get_inward_normal(polygon, [p1, p2])
+            # Create buffered points
+            p1_buffered = (p1[0] + buffer * normal[0], p1[1] + buffer * normal[1])
+            p2_buffered = (p2[0] + buffer * normal[0], p2[1] + buffer * normal[1])
+            p1, p2 = p1_buffered, p2_buffered
+
+        # Line segment intersection calculation
+        x1, y1 = line_start
+        x2, y2 = line_end
+        x3, y3 = p1
+        x4, y4 = p2
+        
+        denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if denominator == 0:  # Lines are parallel
+            continue
+            
+        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denominator
+        u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denominator
+        
+        # Check if intersection occurs within both line segments
+        if 0 <= t <= 1 and 0 <= u <= 1:
+            return True
+
+    return False
+
+
+

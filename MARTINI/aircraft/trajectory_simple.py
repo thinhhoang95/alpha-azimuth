@@ -41,17 +41,18 @@ def get_4d_trajectory_from_flight_plan(entry_time, entry_psi, spd_ref, alt_ref, 
         # The actual desired altitude change
         z_diff = z - wp_z
 
-        if np.abs(z_diff) > 0 and np.abs(z_diff) > z_diff_max:
-            # We will continue climbing or descending through the next waypoint
-            z_diff = z_diff_max * np.sign(z_diff)
-        else:
-            # Find the level off point in this segment
-            t_level_off = time_to_next_wp * (np.abs(z_diff) / z_diff_max)
-            # Add the level off point to the trajectory
-            marks_t.append(clock + t_level_off)
-            marks_h.append(wp_z + z_diff)
-            marks_x.append(wp_x + x_diff * t_level_off / time_to_next_wp)
-            marks_y.append(wp_y + y_diff * t_level_off / time_to_next_wp)
+        if np.abs(z_diff) > 0:
+            if np.abs(z_diff) > z_diff_max:
+                # We will continue climbing or descending through the next waypoint
+                z_diff = z_diff_max * np.sign(z_diff)
+            else:
+                # Find the level off point in this segment
+                t_level_off = time_to_next_wp * (np.abs(z_diff) / z_diff_max)
+                # Add the level off point to the trajectory
+                marks_t.append(clock + t_level_off)
+                marks_h.append(wp_z + z_diff)
+                marks_x.append(wp_x + x_diff * t_level_off / time_to_next_wp)
+                marks_y.append(wp_y + y_diff * t_level_off / time_to_next_wp)
 
         # Add the next waypoint to the trajectory
         marks_t.append(clock + time_to_next_wp)
