@@ -74,5 +74,5 @@ def propose_action(from_point: np.ndarray, to_point: np.ndarray, obstacles: Obst
     if attention_weight == 0.0:
         return attention_weight, None
     else:
-        return attention_weight, sample_action(obstacles, [obstacle_index], max_distance=10.0, min_distance=1.0, num_samples=100, nearby_threshold=3.0)
+        return attention_weight, sample_action(obstacles, [obstacle_index], max_distance=12.0, min_distance=3.0, num_samples=150, nearby_threshold=12.0)
 

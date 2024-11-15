@@ -33,7 +33,7 @@ class Node:
     inherent_cost: float = 0.0 # the cost associated with the state of the node itself
                                # or, direct evaluation of the flight plan of this node
     # Inherent values: associated with the state of the node itself (not the children)
-    is_evaluated: bool = False
+    is_inherently_evaluated: bool = False
     time_cost: float = 0.0
     obstacle_hits: int = 0
     
@@ -59,7 +59,7 @@ class Node:
         self.time_cost = time_cost
         self.obstacle_hits = obstacle_hits
         self.inherent_cost = time_cost + obstacle_hits * 1000
-        self.is_evaluated = True
+        self.is_inherently_evaluated = True
 
     def get_actions(self, obstacles: Obstacle):
         # For each segment in the flight path
@@ -72,8 +72,9 @@ class Node:
             # Get the attention weight and the proposed action
             attention_weight_obstacle, proposed_action_obstacle = obrece.propose_action(start_point, end_point, obstacles)
             # TODO: resample the action based on the attention weight
-            if proposed_action_obstacle is not None:
+            if proposed_action_obstacle is not None: # if there is an obstacle in the way
                 return i, proposed_action_obstacle # index of segment and proposed action
+            # otherwise, there is no obstacle in the way, the obstacle avoidance policy returns None
         return None, None # No obstacle in the way
 
 class Tree:
@@ -101,10 +102,11 @@ class Tree:
     def evaluate_all_nodes(self, obstacles: Obstacle, airspace: Any, wind_field: Any = None):
         """Evaluates the inherent cost for all nodes in the tree"""
         def evaluate_node(node: Node):
+            # Evaluate inherent cost (best_value will automatically be updated with backup_values())
             node.evaluate_inherent(obstacles, airspace, wind_field)
             for child in node.children.values():
-                if not child.is_evaluated:
-                    evaluate_node(child)
+                # if not child.is_inherently_evaluated:
+                evaluate_node(child)
                 
         evaluate_node(self.root)
         self.backup_values() # Update best values for all nodes
@@ -147,12 +149,13 @@ class Tree:
         
         return find_best_leaf_recursive(self.root)
     
-    def plot(self, ax=None, show_values=True):
+    def plot(self, ax=None, show_values=True, value_type='inherent'):
         """Plots the tree structure visually using networkx and matplotlib
         
         Args:
             ax: Optional matplotlib axis to plot on
             show_values: Whether to show node values in the plot
+            value_type: Type of value to show in the plot ('inherent', 'best', 'inherent+obstaclehits', 'num_wp')
         """
         import networkx as nx
         import matplotlib.pyplot as plt
@@ -160,12 +163,19 @@ class Tree:
         # Create directed graph
         G = nx.DiGraph()
         
-        def add_nodes_edges(node, parent_id=None):
+        def add_nodes_edges(node: Node, parent_id=None):
             node_id = str(node.state)
             if show_values:
-                label = f"{node.state}\nv={node.best_value:.2f}"
+                if value_type == 'inherent':
+                    label = f'{node.inherent_cost:.2f}'
+                elif value_type == 'best':
+                    label = f'{node.best_value:.2f}'
+                elif value_type == 'inherent+obstaclehits':
+                    label = f'{node.inherent_cost:.2f} + {node.obstacle_hits} H'
+                elif value_type == 'num_wp':
+                    label = f'{len(node.state)} WPs'
             else:
-                label = str(node.state)
+                label = 's'
             G.add_node(node_id, label=label)
             
             if parent_id is not None:
@@ -187,7 +197,10 @@ class Tree:
                 node_color='lightblue',
                 node_size=2000,
                 arrowsize=20,
-                labels=nx.get_node_attributes(G, 'label'))
+                labels=nx.get_node_attributes(G, 'label'),
+                font_size=8)
         
         plt.tight_layout()
+        plt.title(f'{value_type} values')
+        plt.show()
         return ax

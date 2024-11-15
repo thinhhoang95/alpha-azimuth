@@ -23,6 +23,6 @@ def eval_plan(flight_plan: FlightPlan, obstacles: Obstacle, airspace: Any, wind_
         # Check if the segment intersects with any obstacle
         for obstacle in obstacles.get_polygons():
             if line_segment_intersects_polygon(start, end, obstacle):
-                obstacle_hits += 1
+                obstacle_hits = 1
 
     return time_cost, obstacle_hits
