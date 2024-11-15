@@ -17,12 +17,13 @@ def eval_plan(flight_plan: FlightPlan, obstacles: Obstacle, airspace: Any, wind_
 
     # Check each segment of the trajectory
     for i in range(len(trajectory_4d[0]) - 1):
-        start = np.array([trajectory_4d[1][i], trajectory_4d[1][i]])
-        end = np.array([trajectory_4d[2][i + 1], trajectory_4d[2][i + 1]])
+        start = np.array([trajectory_4d[1][i], trajectory_4d[2][i]]) # x, y
+        end = np.array([trajectory_4d[1][i + 1], trajectory_4d[2][i + 1]]) # x, y
 
         # Check if the segment intersects with any obstacle
         for obstacle in obstacles.get_polygons():
-            if line_segment_intersects_polygon(start, end, obstacle):
+            obstacle_meters = obstacle * 1000 # Convert to meters
+            if line_segment_intersects_polygon(start, end, obstacle_meters):
                 obstacle_hits = 1
 
     return time_cost, obstacle_hits

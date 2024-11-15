@@ -92,6 +92,8 @@ class FlightPlan:
 
     def validate_no_turnaround(self):
         """Validate that the flight plan has no turns greater than 180 degrees.
+        Be careful: sometimes it is truly necessary to have a turnaround, e.g., closed airspace,
+        wrong landing sequence...
         
         Returns:
             bool: True if flight plan is valid (no turns > 180 degrees), False otherwise
