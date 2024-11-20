@@ -98,7 +98,8 @@ def get_ordered_segments(s1, e1, s2, e2):
     else:
         return s2, e2, s1, e1
 
-def compute_segment_distance(s1, e1, s2, e2):
+def compute_segment_distance(s1, e1, s2, e2, allow_cutoff = False,
+                             max_distance = 10.0, max_dt = 0.1):
     """
     Compute the distance between two line segments using geometric features.
     
@@ -115,11 +116,16 @@ def compute_segment_distance(s1, e1, s2, e2):
     # Compute geometric distance features
     dv, ds, dt = compute_features(si, ei, sj, ej)
 
-    attended_dv = dv + 10_000 if dv > 5 else dv
-
-    attented_dtdv = np.exp(5 * dt) * attended_dv if dt > 0.1 else np.exp(dt) * attended_dv # dt: 0 -> 1, exp(dt) -> e
-
-    return attented_dtdv
+    if allow_cutoff:
+        if max_distance is None or max_dt is None:
+            raise ValueError("max_distance and max_dt must be provided if allow_cutoff is True")
+        attended_dv = np.inf if dv > max_distance else dv
+        attended_dtdv = np.inf if dt > max_dt else np.exp(dt) * attended_dv
+        return attended_dtdv
+    else:
+        attended_dv = dv
+        attended_dtdv = np.exp(dt) * dv
+        return attended_dtdv
 
     # Weights for the features
     # weights = [1, 0, 100]
@@ -157,7 +163,8 @@ def compute_segment_features_auto(s1, e1, s2, e2):
     return dv, ds, dt
 
 
-def compute_distance_matrix(segments):
+def compute_distance_matrix(segments, allow_cutoff = False,
+                            max_distance = 10.0, max_dt = 0.1):
     """
     Compute pairwise distance matrix between line segments using geometric features.
     
@@ -177,7 +184,10 @@ def compute_distance_matrix(segments):
             s2, e2 = segments[j]
             
             # Compute distance between segments i and j
-            dist = compute_segment_distance(s1, e1, s2, e2)
+            dist = compute_segment_distance(s1, e1, s2, e2,
+                                            allow_cutoff=allow_cutoff,
+                                            max_distance=max_distance,
+                                            max_dt=max_dt)
             
             # Distance matrix is symmetric
             distance_matrix[i,j] = dist

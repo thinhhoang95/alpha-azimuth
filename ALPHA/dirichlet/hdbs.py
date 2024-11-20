@@ -25,12 +25,7 @@ def perform_clustering(X, min_cluster_size=5, min_samples=None, cluster_selectio
             metric='precomputed'
         )
     elif algo == 'spectral':
-        from sklearn.cluster import SpectralClustering
-        clusterer = SpectralClustering(
-            n_clusters=min_cluster_size,
-            affinity='precomputed',
-            assign_labels='discretize'
-        )
+        raise NotImplementedError('Spectral clustering is not implemented yet')
     else:
         raise ValueError(f'Unknown clustering algorithm: {algo}')
         
