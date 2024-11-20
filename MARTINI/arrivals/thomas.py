@@ -404,6 +404,7 @@ def generate_problem_thomas_jensen(polygon: Tuple[np.ndarray, float], lambda_par
     final_entry_points = []
     final_exit_points = []
     final_velocity_vectors = []
+    final_parent_indices = []
 
     # Plot the entry points
     for i, point in enumerate(random_points):
@@ -430,11 +431,12 @@ def generate_problem_thomas_jensen(polygon: Tuple[np.ndarray, float], lambda_par
                 final_entry_points.append(point)
                 final_exit_points.append(intersection)
                 final_velocity_vectors.append(velocity)
+                final_parent_indices.append(parent_idx)
                 trajectory_count += 1
         else:
             pass 
         
-    return final_entry_points, final_exit_points, final_velocity_vectors
+    return final_entry_points, final_exit_points, final_velocity_vectors, final_parent_indices
 
 
 
@@ -629,6 +631,33 @@ def visualize_airspace(polygon: Tuple[np.ndarray, float], entry_points: List[Tup
     for entry, exit in zip(entry_points, exit_points):
         plt.plot([entry[0], exit[0]], [entry[1], exit[1]], 
                  'b--', alpha=0.3, linewidth=1)
+        
+    # Add trajectory IDs with adjustable text positions to avoid overlap
+    texts = []
+    for i, (entry, exit) in enumerate(zip(entry_points, exit_points)):
+        # Calculate midpoint of trajectory for initial text position
+        mid_x = (entry[0] + exit[0]) / 2
+        mid_y = (entry[1] + exit[1]) / 2
+        
+        # Add text with small offset from midpoint
+        text = plt.text(mid_x, mid_y, str(i), 
+                       fontsize=8,
+                       bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, pad=0),
+                       horizontalalignment='center',
+                       verticalalignment='center')
+        texts.append(text)
+    
+    # Try to prevent text overlap using adjustText if available
+    try:
+        from adjustText import adjust_text
+        adjust_text(texts, 
+                   arrowprops=dict(arrowstyle='-', color='gray', lw=0.5),
+                   expand_points=(1.5, 1.5))
+    except ImportError:
+        # If adjustText not available, keep simple text labels
+        print('adjustText not available, keeping simple text labels')
+        pass
+    
 
     plt.grid(True)
     plt.axis('equal')

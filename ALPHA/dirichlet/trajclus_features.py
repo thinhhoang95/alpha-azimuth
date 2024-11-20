@@ -47,7 +47,8 @@ def get_projection_distances(si, ei, sj, ej):
     theta = np.arccos(np.clip(cos_theta, -1.0, 1.0))  # Clip to handle numerical errors
 
     # Calculate orientation distance (perpendicular component of second segment)
-    lt = np.linalg.norm(ej - sj) * np.sin(theta)
+    # lt = np.linalg.norm(ej - sj) * np.sin(theta)
+    lt = np.sin(theta)
     
     return lv1, lv2, ls1, ls2, lt
 
@@ -71,9 +72,9 @@ def compute_features(si, ei, sj, ej):
     len_j = np.linalg.norm(ej - sj)  # Length of shorter segment
     
     # Normalize features by appropriate length scales
-    dv = (lv1 ** 2 + lv2 ** 2) / (lv1 + lv2) / len_i  # Normalize by longer segment length
-    ds = np.minimum(ls1, ls2) / len_i  # Normalize by longer segment length
-    dt = lt / len_j  # Normalize by shorter segment length
+    dv = (lv1 ** 2 + lv2 ** 2) #  / (lv1 + lv2)
+    ds = np.minimum(ls1, ls2)
+    dt = lt
 
     return dv, ds, dt
 
@@ -114,10 +115,47 @@ def compute_segment_distance(s1, e1, s2, e2):
     # Compute geometric distance features
     dv, ds, dt = compute_features(si, ei, sj, ej)
 
+    attended_dv = dv + 10_000 if dv > 5 else dv
+
+    attented_dtdv = np.exp(5 * dt) * attended_dv if dt > 0.1 else np.exp(dt) * attended_dv # dt: 0 -> 1, exp(dt) -> e
+
+    return attented_dtdv
+
     # Weights for the features
-    weights = [1, 1, 5]
+    # weights = [1, 0, 100]
     
-    return np.sum(weights * np.array([dv, ds, dt]))/np.sum(weights) # dv: vertical distance, ds: longitudinal distance, dt: orientation distance
+    # return np.sum(weights * np.array([dv, ds, dt])) # dv: vertical distance, ds: longitudinal distance, dt: orientation distance
+
+def compute_segment_features_auto(s1, e1, s2, e2):
+    """
+    Compute geometric features for two line segments, ordering them by length.
+
+    This function takes the start and end points of two line segments, orders them by their lengths,
+    and computes geometric distance features between the segments. The features computed include:
+    - dv: Vertical distance between the segments
+    - ds: Longitudinal distance between the segments
+    - dt: Orientation distance between the segments
+
+    Args:
+        s1 (np.ndarray): Start point of the first line segment (2D numpy array).
+        e1 (np.ndarray): End point of the first line segment (2D numpy array).
+        s2 (np.ndarray): Start point of the second line segment (2D numpy array).
+        e2 (np.ndarray): End point of the second line segment (2D numpy array).
+
+    Returns:
+        tuple: A tuple containing three elements:
+            - dv (float): Vertical distance feature.
+            - ds (float): Longitudinal distance feature.
+            - dt (float): Orientation distance feature.
+    """
+    # Order segments by length
+    si, ei, sj, ej = get_ordered_segments(s1, e1, s2, e2)
+    
+    # Compute geometric distance features
+    dv, ds, dt = compute_features(si, ei, sj, ej)
+
+    return dv, ds, dt
+
 
 def compute_distance_matrix(segments):
     """
