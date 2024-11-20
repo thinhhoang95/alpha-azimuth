@@ -6,7 +6,6 @@ import numpy as np
 from shapely.geometry import Polygon, LineString, Point
 
 from MARTINI.airspace import geo
-from debug_printer import debug
 
 def thomas_point_process_border(points: List[Tuple[float, float]], lambda_parent: float, mu: float, sigma: float, random_state: int = None, min_dist_to_vertex: float = 50, min_transit_length: float = 50) -> Tuple[List[Tuple[float, float]], List[int], List[Tuple[Tuple[float, float], Tuple[float, float]]]]:
     """
