@@ -391,4 +391,62 @@ def line_segment_intersects_polygon(
     return False
 
 
+from typing import List, Tuple
+import numpy as np
+from pyproj import Transformer, CRS
 
+def create_local_projection(ref_lat: float, ref_lon: float) -> Transformer:
+    """
+    Create a local projection centered on the reference point.
+    Uses UTM projection for accurate local coordinates.
+    
+    Args:
+        ref_lat: Reference latitude in degrees
+        ref_lon: Reference longitude in degrees
+        
+    Returns:
+        Transformer: Projection transformer object
+    """
+    # Determine UTM zone from longitude
+    zone = int((ref_lon + 180) / 6) + 1
+    hemisphere = 'north' if ref_lat >= 0 else 'south'
+    
+    # Create UTM projection string
+    proj_string = f"+proj=utm +zone={zone} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+    
+    # Create transformer
+    return Transformer.from_crs(
+        "EPSG:4326",  # WGS84 latitude/longitude
+        proj_string,
+        always_xy=True  # Ensure longitude/latitude (x/y) order
+    )
+
+def geo_to_xy(lat: float, lon: float, transformer: Transformer) -> Tuple[float, float]:
+    """
+    Convert geographical coordinates to xy projection using provided transformer.
+    
+    Args:
+        lat: Latitude in degrees
+        lon: Longitude in degrees
+        transformer: Projection transformer from create_local_projection()
+        
+    Returns:
+        Tuple[float, float]: (x, y) coordinates in meters
+    """
+    x, y = transformer.transform(lon, lat)
+    return (x, y)
+
+def xy_to_geo(x: float, y: float, transformer: Transformer) -> Tuple[float, float]:
+    """
+    Convert xy coordinates back to geographical coordinates.
+    
+    Args:
+        x: X coordinate in meters
+        y: Y coordinate in meters
+        transformer: Projection transformer from create_local_projection()
+        
+    Returns:
+        Tuple[float, float]: (latitude, longitude) in degrees
+    """
+    lon, lat = transformer.transform(x, y, direction='INVERSE')
+    return (lat, lon)
