@@ -12,6 +12,7 @@ def leiden_community_detection(adjacency_matrix, resolution=1.0, n_iterations=2)
         The adjacency matrix of the network
     resolution : float
         Resolution parameter for the Leiden algorithm (default=1.0)
+        The higher the resolution, the more communities are detected.
     n_iterations : int
         Number of iterations of the Leiden algorithm (default=2)
         
@@ -28,7 +29,10 @@ def leiden_community_detection(adjacency_matrix, resolution=1.0, n_iterations=2)
     weights = adjacency_matrix[adjacency_matrix > 0]
     
     # Create igraph object
-    G = ig.Graph(edges=edges, directed=False)
+    # G = ig.Graph(edges=edges, directed=False)
+    # Create igraph object with explicit number of vertices
+    n_vertices = adjacency_matrix.shape[0]
+    G = ig.Graph(n=n_vertices, edges=edges, directed=False)
     
     # Run Leiden algorithm
     partition = leidenalg.find_partition(
@@ -58,3 +62,5 @@ if __name__ == "__main__":
     
     print(f"Found communities: {communities}")
     print(f"Partition quality: {quality}")
+
+
