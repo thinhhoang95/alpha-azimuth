@@ -354,7 +354,12 @@ from ..airspace import intersect
 from ..airspace import geo
 from ..airspace import randomize_airspace
 
-def generate_problem_thomas_jensen(polygon: Tuple[np.ndarray, float], lambda_parent: float, mu: float, sigma: float, min_dist_to_vertex: float = 50, min_transit_length: float = 50, **kwargs) -> Tuple[List[Tuple[float, float]], List[int], List[Tuple[Tuple[float, float], Tuple[float, float]]], List[float]]:
+def generate_problem_thomas_jensen(polygon: Tuple[np.ndarray, float], lambda_parent: float,
+                                   mu: float, sigma: float, min_dist_to_vertex: float = 50,
+                                   min_transit_length: float = 50, **kwargs) -> Tuple[List[Tuple[float, float]], List[int],
+                                                                                      List[Tuple[Tuple[float, float],
+                                                                                                 Tuple[float, float]]],
+                                                                                                 List[float]]:
     """
     Generate entry and exit points for aircraft trajectories using a Thomas-Jensen point process.
     
@@ -666,3 +671,18 @@ def visualize_airspace(polygon: Tuple[np.ndarray, float], entry_points: List[Tup
     plt.ylabel('Y-coordinate')
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.show()
+
+
+
+def assign_arrival_times_to_trajectories(entry_points: List[Tuple[float, float]], exit_points: List[Tuple[float, float]],
+                                          arrivals: List[float], parent_indices: List[int],
+                                          mode: str = 'uniform', seed: int = 69420) -> List[Tuple[float, float]]:
+    if mode == 'uniform':
+        # Shuffle the arrival times
+        np.random.seed(seed)
+        np.random.shuffle(arrivals)
+        return arrivals
+    else:
+        raise ValueError(f"Invalid mode: {mode}. Please choose 'uniform'.")
+    
+

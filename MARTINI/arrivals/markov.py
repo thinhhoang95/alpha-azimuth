@@ -59,13 +59,15 @@ class MarkovArrivalProcess:
         """Compute the fundamental arrival rate"""
         return float(self.pi @ self.D1 @ np.ones(self.n_states))
     
-    def generate_arrivals(self, T, seed=None):
+    def generate_arrivals(self, T, seed=None,
+                          min_separation=None):
         """
         Generate arrival times using the MAP up to time T
         
         Parameters:
         T (float): Time horizon
         seed (int): Random seed for reproducibility
+        min_separation (float): Minimum separation between arrivals (seconds)
         
         Returns:
         list: Arrival times
@@ -115,6 +117,22 @@ class MarkovArrivalProcess:
             current_state = np.random.choice(self.n_states, p=probs)
             # print(f"Current time: {current_time}, Transition: {old_state} -> {current_state} (Arrival: {is_arrival}), Total rate: {total_rate}")
             pass
+
+        
+        # Ensure minimum separation between arrivals
+        if len(arrivals) > 1:
+            # Calculate time differences between consecutive arrivals
+            diff_times = np.diff(arrivals)
+            
+            # Find indices where separation is less than minimum
+            too_close = diff_times < min_separation
+            
+            if np.any(too_close):
+                # Set minimum separation where needed
+                diff_times[too_close] = min_separation
+                
+                # Reconstruct arrival times using cumulative sum
+                arrivals = np.concatenate(([arrivals[0]], arrivals[0] + np.cumsum(diff_times)))
                 
         return arrivals
     
@@ -156,8 +174,8 @@ def example_usage():
     D0, D1 = standardize_D0_D1(D0, D1)
 
     map_process = MarkovArrivalProcess(D0, D1)
-    print(f"Stationary distribution: {map_process.pi}")
-    print(f"Arrival rate: {map_process.lambda_}")
+    # print(f"Stationary distribution: {map_process.pi}")
+    # print(f"Arrival rate: {map_process.lambda_}")
     
     # Generate arrivals for time period T=10
     arrivals = map_process.generate_arrivals(T=3600, seed=42)

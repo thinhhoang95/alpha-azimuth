@@ -1,0 +1,14 @@
+name: alpha-azimuth
+channels:
+- defaults
+- conda-forge
+dependencies:
+- python=3.12
+- numpy
+- scipy
+- matplotlib
+- pandas
+- pip
+- pip:
+  - python-dotenv
+  - changepy
