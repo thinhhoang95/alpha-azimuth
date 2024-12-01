@@ -6,7 +6,10 @@ LATERAL_DISTANCE_THRESHOLD = 6 * 1.852 # 6 nautical miles, in kilometers
 VERTICAL_DISTANCE_THRESHOLD_LOWER = 1000 # 1000 feet below FL290
 VERTICAL_DISTANCE_THRESHOLD_UPPER = 2000 # 2000 feet above FL290
 
-def check_conflicts(trajectories: list[Trajectory]):
+def check_conflicts(trajectories: list[Trajectory],
+                    vertical_distance_threshold_lower: float = VERTICAL_DISTANCE_THRESHOLD_LOWER,
+                    vertical_distance_threshold_upper: float = VERTICAL_DISTANCE_THRESHOLD_UPPER,
+                    lateral_distance_threshold: float = LATERAL_DISTANCE_THRESHOLD):
     """Check for conflicts between all pairs of trajectories.
     
     Args:
@@ -29,30 +32,10 @@ def check_conflicts(trajectories: list[Trajectory]):
                 p2_start = traj2.waypoints[seg2]
                 p2_end = traj2.waypoints[seg2 + 1]
 
-                # Convert to km ========================================================
-                # Use pyproj to convert lat/lon to kilometers
-                import pyproj
-                
-                # Calculate the center point for the projection
-                center_lat = np.mean([p1_start[0], p1_end[0], p2_start[0], p2_end[0]])
-                center_lon = np.mean([p1_start[1], p1_end[1], p2_start[1], p2_end[1]])
-                
-                # Create a custom azimuthal equidistant projection centered on the mean point
-                proj = pyproj.Proj(proj='aeqd', lat_0=center_lat, lon_0=center_lon)
-                
-                # Convert all points to kilometers from the center
-                p1_start_km = proj(p1_start[1], p1_start[0])
-                p1_end_km = proj(p1_end[1], p1_end[0])
-                p2_start_km = proj(p2_start[1], p2_start[0])
-                p2_end_km = proj(p2_end[1], p2_end[0])
-                
-                # Convert to 2D coordinates (x, y) in kilometers
-                p1_start_km = np.array(p1_start_km) / 1000  # convert to kilometers
-                p1_end_km = np.array(p1_end_km) / 1000
-                p2_start_km = np.array(p2_start_km) / 1000
-                p2_end_km = np.array(p2_end_km) / 1000
-
-                # ======================================================================
+                p1_start_xyz = traj1.waypoints_xyz[seg1]
+                p1_end_xyz = traj1.waypoints_xyz[seg1 + 1]
+                p2_start_xyz = traj2.waypoints_xyz[seg2]
+                p2_end_xyz = traj2.waypoints_xyz[seg2 + 1]
 
                 # Get passing times at segment endpoints
                 t1_start = traj1.passing_time[seg1]
@@ -67,32 +50,41 @@ def check_conflicts(trajectories: list[Trajectory]):
                 alt2_end = traj2.altitudes[seg2 + 1]
                 
                 # Check if segments are in conflict
-                if segments_in_conflict_fast(p1_start_km, p1_end_km, alt1_start, alt1_end,
-                                     p2_start_km, p2_end_km, alt2_start, alt2_end,
-                                     t1_start, t1_end, t2_start, t2_end):
-                    conflicts.append((i1, i2, seg1, seg2))
+                in_conflict, t_lb = segments_in_conflict_cartesian(p1_start_xyz, p1_end_xyz, alt1_start, alt1_end,
+                                     p2_start_xyz, p2_end_xyz, alt2_start, alt2_end,
+                                     t1_start, t1_end, t2_start, t2_end,
+                                     vertical_distance_threshold_lower, vertical_distance_threshold_upper,
+                                     lateral_distance_threshold)
+                if in_conflict:
+                    conflicts.append((i1, i2, seg1, seg2, t_lb))
     
     return conflicts
 
-def segments_in_conflict_fast(p1_start_km, p1_end_km, alt1_start, alt1_end,
-                             p2_start_km, p2_end_km, alt2_start, alt2_end,
-                             t1_start, t1_end, t2_start, t2_end):
+
+def segments_in_conflict_cartesian(p1_start_xyz, p1_end_xyz, alt1_start, alt1_end,
+                             p2_start_xyz, p2_end_xyz, alt2_start, alt2_end,
+                             t1_start, t1_end, t2_start, t2_end,
+                             vertical_distance_threshold_lower: float = VERTICAL_DISTANCE_THRESHOLD_LOWER,
+                             vertical_distance_threshold_upper: float = VERTICAL_DISTANCE_THRESHOLD_UPPER,
+                             lateral_distance_threshold: float = LATERAL_DISTANCE_THRESHOLD):
     
     # Check if altitudes are within the vertical distance threshold
-    if abs(alt1_start - alt2_start) > VERTICAL_DISTANCE_THRESHOLD_LOWER or \
-       abs(alt1_end - alt2_end) > VERTICAL_DISTANCE_THRESHOLD_LOWER:
-        return True
+    if abs(alt1_start - alt2_start) > vertical_distance_threshold_lower or \
+       abs(alt1_end - alt2_end) > vertical_distance_threshold_lower:
+        return False, np.nan
     
     # Rename variables for clarity
-    x1 = p1_start_km
-    x3 = p2_start_km
-    x2 = p1_end_km
-    x4 = p2_end_km
+    x1 = p1_start_xyz
+    x3 = p2_start_xyz
+    x2 = p1_end_xyz
+    x4 = p2_end_xyz
 
     t1 = t1_start
     t2 = t1_end
     t3 = t2_start
     t4 = t2_end
+
+
     
     a = x1 - x3 - t1 * (x2 - x1) / (t2 - t1) + t3 * (x4 - x3) / (t4 - t3)
     b = (x2 - x1) / (t2 - t1) - (x4 - x3) / (t4 - t3)
@@ -102,23 +94,31 @@ def segments_in_conflict_fast(p1_start_km, p1_end_km, alt1_start, alt1_end,
     t_max = max(t1, t2, t3, t4)
 
     # Intersection time bound assuming that ||x1(t) - x3(t)|| <= LATERAL_DISTANCE_THRESHOLD
-    delta = (a.dot(b))**2 - b.dot(b) * (a.dot(a) - LATERAL_DISTANCE_THRESHOLD**2)
+    delta = (a.dot(b))**2 - b.dot(b) * (a.dot(a) - lateral_distance_threshold**2)
 
     if delta < 0:
-        return False
-    if b.dot(b) <= 1e-1:
-        return False
+        return False, np.nan
+    if b.dot(b) <= 1e-6:
+        if a.dot(a) - lateral_distance_threshold**2 > 0:
+            return False, np.nan # Non-overlapping segments
+        else:
+            return True, np.nan # Parallel and overlapping segments
     t_lb = (-a.dot(b) - np.sqrt(delta)) / b.dot(b)
     t_ub = (-a.dot(b) + np.sqrt(delta)) / b.dot(b)
 
     # Check if t_lb and t_ub are within the segment bounds
-    if t_lb > t_min and t_ub < t_max:
-        return True
+    if t_lb > t1 and t_lb < t2 and t_lb > t3 and t_lb < t4 and \
+       t_ub > t1 and t_ub < t2 and t_ub > t3 and t_ub < t4:
+        return True, t_lb
     
-    return False
+    return False, np.nan
 
-def segments_in_conflict(p1_start, p1_end, alt1_start, alt1_end,
-                        p2_start, p2_end, alt2_start, alt2_end):
+# Deprecated
+def _segments_in_conflict(p1_start, p1_end, alt1_start, alt1_end,
+                        p2_start, p2_end, alt2_start, alt2_end,
+                        vertical_distance_threshold_lower: float = VERTICAL_DISTANCE_THRESHOLD_LOWER,
+                        vertical_distance_threshold_upper: float = VERTICAL_DISTANCE_THRESHOLD_UPPER,
+                        lateral_distance_threshold: float = LATERAL_DISTANCE_THRESHOLD):
     """Check if two trajectory segments are in conflict.
     
     Args:
@@ -164,8 +164,8 @@ def segments_in_conflict(p1_start, p1_end, alt1_start, alt1_end,
             vertical_separation = abs(alt1_interp[i] - alt2_interp[j])
             
             # Check if distances violate thresholds
-            if (lateral_distance < LATERAL_DISTANCE_THRESHOLD and 
-                vertical_separation < VERTICAL_DISTANCE_THRESHOLD_LOWER):
+            if (lateral_distance < lateral_distance_threshold and 
+                vertical_separation < vertical_distance_threshold_lower):
                 return True
                 
     return False
