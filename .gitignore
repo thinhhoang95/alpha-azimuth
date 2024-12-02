@@ -59,3 +59,5 @@ Thumbs.db
 
 MARTINI/arrivals/videos/*.gif
 MARTINI/arrivals/videos/*.mp4
+
+azimuth.env

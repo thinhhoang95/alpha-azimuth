@@ -10,6 +10,9 @@
 
 namespace py = pybind11;
 
+// Declare M_PI to avoid Visual Studio C++ warning
+#define M_PI 3.14159265358979323846 
+
 // Constants
 const double EARTH_RADIUS = 6371.0; // km
 const double LATERAL_DISTANCE_THRESHOLD = 6.0 * 1.852; // 6 nautical miles in km

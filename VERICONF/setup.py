@@ -10,7 +10,7 @@ ext_modules = [
         "conflict_checker",
         ["conflict_checker.cpp"],
         include_dirs=[pybind11.get_include()],
-        cxx_std=11,
+        cxx_std=17,
     ),
 ]
 
